@@ -2,7 +2,7 @@ const imageBtn=document.getElementById('imageBtn');
 const imagePrompt=document.getElementById('imagePrompt');
 const imageStyle=document.getElementById('imageStyle');
 const imageResult=document.getElementById('imageResult');
-function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function escapeHtml(s){return String(s).replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[m]))}
 function normalize(s){return String(s||'').toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').replace(/\s+/g,' ').trim()}
 function queryTerms(q){return [...new Set(normalize(q).split(' ').filter(w=>w.length>2&&!['اعمل','اعمللي','اعملوا','صورة','صور','تعليمية','تعليمي','للدرس','للصفحة','صوره','من','في','عن','هذا','هذه','الكتاب'].includes(w)))]}
 async function imageBookContext(q){
@@ -29,22 +29,28 @@ async function generateEducationalImage(){
  imageResult.innerHTML='<div class="image-loading">📚 جاري قراءة محتوى الكتاب المختار...</div>';
  try{
   const context=await imageBookContext(text);if(!context)throw new Error('الكتاب المحدد لا يحتوي على مقاطع مفهرسة. أعد رفع الكتاب وانتظر اكتمال التجهيز.');
-  const styles=[
+  const isFullLesson=/(الدرس|درس|الوحدة|الباب|الفصل|الموضوع)/i.test(text);
+  const styles=isFullLesson?[
+   ['ملخص بصري شامل للدرس','📚 ملخص الدرس'],
+   ['خريطة مفاهيم','🧠 خريطة المفاهيم'],
+   ['ملخص بصري للخطوات أو العملية','🔄 الخطوات والعملية'],
+   ['مقارنة أو تصنيف أو مخطط علمي حسب محتوى الدرس','🔬 العلاقات والتصنيف']
+  ]:[
    ['خريطة مفاهيم','🧠 الخريطة الرئيسية'],
    ['ملخص بصري للخطوات أو العملية','🔄 الخطوات والعملية'],
    ['مقارنة أو تصنيف أو مخطط علمي حسب محتوى الدرس','🔬 التحليل البصري']
   ];
-  imageResult.innerHTML='<div class="image-loading">🧠 تم العثور على محتوى الكتاب — جاري تحليل الدرس وإنشاء مجموعة الصور...</div>';
+  imageResult.innerHTML=`<div class="image-loading">🧠 تم العثور على محتوى الكتاب — جاري ${isFullLesson?'تحويل الدرس إلى حزمة مذاكرة بصرية':'إنشاء مجموعة الصور'}...</div>`;
   const results=[];
   for(let i=0;i<styles.length;i++){
    imageResult.innerHTML=`<div class="image-loading">🎨 جاري إنشاء الصورة ${i+1} من ${styles.length}...</div>`;
    try{
-    const src=await requestImage(`${text}\n\nأنشئ لوحة تعليمية رقم ${i+1} من مجموعة لوحات مترابطة. استخدم محتوى الكتاب المرفق فقط. ركّز على جزء مختلف ومهم من الدرس، ولا تكرر اللوحات السابقة. النوع المفضل لهذه اللوحة: ${styles[i][0]}. إذا لم يكن هذا النوع مناسبًا للمحتوى، اختر النوع الأنسب من الأنواع المتاحة.`,styles[i][0],context);
+    const src=await requestImage(`${text}\n\nأنشئ لوحة تعليمية رقم ${i+1} من مجموعة مترابطة مبنية على محتوى الكتاب المرفق فقط. ${isFullLesson?'اعتبر هذه اللوحة جزءًا من حزمة مذاكرة للدرس كاملًا، واستخرج أهم المعلومات التي يجب أن يراجعها الطالب.':''} ركّز على جزء مختلف ومهم، ولا تكرر اللوحات السابقة. النوع المفضل لهذه اللوحة: ${styles[i][0]}. إذا لم يكن هذا النوع مناسبًا للمحتوى، اختر النوع الأنسب من الأنواع المتاحة.`,styles[i][0],context);
     results.push(card(src,styles[i][1],i));
    }catch(e){if(i===0)throw e}
   }
   if(!results.length)throw new Error('تعذر إنشاء الصور التعليمية.');
-  imageResult.innerHTML=`<div class="educational-set"><div class="set-title">📚 مجموعة تعليمية مبنية على محتوى الكتاب</div>${results.join('')}</div>`;
+  imageResult.innerHTML=`<div class="educational-set"><div class="set-title">${isFullLesson?'📚 حزمة مذاكرة بصرية مبنية على الدرس كاملًا':'📚 مجموعة تعليمية مبنية على محتوى الكتاب'}</div>${results.join('')}</div>`;
  }catch(e){imageResult.textContent='❌ '+(e.message||'تعذر إنشاء الصور')}
 }
 imageBtn?.addEventListener('click',generateEducationalImage);
