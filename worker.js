@@ -9,7 +9,13 @@ async function chat(request, env) {
   const apiKey = env?.GEMINI_API_KEY;
   if (typeof apiKey !== 'string' || !apiKey.trim()) return json({ error: 'لم يتم إعداد GEMINI_API_KEY على Cloudflare Worker.' }, 500);
   const prompt = `أنت Elshori7y AI، مساعد دراسي شخصي باللغة العربية. اشرح ببساطة وبشكل منظم، وساعد الطالب على الفهم بدل الحفظ فقط. إذا لم تكن لديك معلومة مؤكدة، قل ذلك بوضوح.\n\nرسالة الطالب:\n${message}`;
-  let upstream; try { upstream = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' + encodeURIComponent(apiKey.trim()), { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}]}) }); } catch { return json({ error:'تعذر الاتصال بخدمة Gemini.' },502); }
+  let upstream;
+  try {
+    upstream = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=' + encodeURIComponent(apiKey.trim()), {
+      method:'POST', headers:{'content-type':'application/json'},
+      body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}]})
+    });
+  } catch { return json({ error:'تعذر الاتصال بخدمة Gemini.' },502); }
   let data; try { data = await upstream.json(); } catch { return json({ error:'Gemini أرسل استجابة غير صالحة.' },502); }
   if (!upstream.ok) return json({ error:data?.error?.message || 'حدث خطأ من Gemini.' },upstream.status);
   const text=data?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'لم يصل رد من المساعد.';
