@@ -1,11 +1,11 @@
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}})}
 async function chat(request,env){
  let body;try{body=await request.json()}catch{return json({error:'بيانات الطلب غير صالحة.'},400)}
- const message=typeof body?.message==='string'?body.message.trim():'';const context=typeof body?.context==='string'?body.context.trim():'';
+ const message=typeof body?.message==='string'?body.message.trim():'';const context=typeof body?.context==='string'?body.context.trim():'';const mode=['books','general','auto'].includes(body?.mode)?body.mode:'auto';const instruction=typeof body?.instruction==='string'?body.instruction.trim():'';
  if(!message)return json({error:'اكتب رسالتك أولاً.'},400);if(message.length>12000)return json({error:'الرسالة طويلة جدًا.'},400);
  const apiKey=env?.GEMINI_API_KEY;if(typeof apiKey!=='string'||!apiKey.trim())return json({error:'لم يتم إعداد GEMINI_API_KEY على Cloudflare Worker.'},500);
- const bookBlock=context?`\n\nمقتطفات من كتب الطالب، استخدمها كمصدر أساسي عند الإجابة:\n${context}\n\nإذا كانت الإجابة موجودة في هذه المقتطفات، اذكر اسم الكتاب ورقم الصفحة عند الإمكان. لا تخترع معلومات غير موجودة فيها.`:'';
- const prompt=`أنت Elshori7y AI، مساعد دراسي شخصي باللغة العربية. اشرح ببساطة وبشكل منظم، وساعد الطالب على الفهم بدل الحفظ فقط. إذا لم تكن لديك معلومة مؤكدة، قل ذلك بوضوح.${bookBlock}\n\nرسالة الطالب:\n${message}`;
+ const bookBlock=context?`\n\nمقتطفات من كتب الطالب:\n${context}`:'';
+ const prompt=`أنت Elshori7y AI، مساعد دراسي شخصي باللغة العربية. اشرح ببساطة وبشكل منظم، وساعد الطالب على الفهم بدل الحفظ فقط.\n\nوضع المعرفة الحالي: ${mode==='books'?'من الكتب فقط':mode==='general'?'المساعد العام':'تلقائي'}\nالتعليمات: ${instruction}${bookBlock}\n\nقواعد مهمة: ${mode==='books'?'اعتمد حصريًا على المقتطفات من كتب الطالب. إذا لم تجد الإجابة فيها، قل إن المعلومة غير موجودة في الكتب ولا تخمن.':mode==='general'?'أجب من معرفتك العامة، ولا تنسب المعلومات إلى كتب الطالب.':'استخدم مقتطفات الكتب كمصدر أول. إذا لم تكفِ للإجابة، يمكنك الاستعانة بمعرفتك العامة، ووضح للمستخدم أن الجزء الإضافي ليس من الكتاب.'}\nإذا استخدمت معلومة من مقتطفات الكتب، اذكر اسم الكتاب ورقم الصفحة عند الإمكان.\n\nرسالة الطالب:\n${message}`;
  let upstream;try{upstream=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key='+encodeURIComponent(apiKey.trim()),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}]})})}catch{return json({error:'تعذر الاتصال بخدمة Gemini.'},502)}
  let data;try{data=await upstream.json()}catch{return json({error:'Gemini أرسل استجابة غير صالحة.'},502)}
  if(!upstream.ok)return json({error:data?.error?.message||'حدث خطأ من Gemini.'},upstream.status);
