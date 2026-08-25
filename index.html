@@ -12,18 +12,19 @@
     <aside class="sidebar">
       <div class="brand"><div class="logo">E</div><div><strong>Elshori7y AI</strong><span>مساعدك الدراسي</span></div></div>
       <button class="new-chat" id="newChat">＋ محادثة جديدة</button>
-      <div class="side-section"><h3>المكتبة</h3><button class="side-btn" id="uploadBtn">📚 إضافة كتاب / PDF</button><input id="fileInput" type="file" accept="application/pdf,.pdf" hidden></div>
+      <div class="side-section"><h3>المكتبة</h3><button class="side-btn" id="uploadBtn">📚 إضافة كتاب / PDF</button><input id="fileInput" type="file" accept="application/pdf,.pdf" hidden><div id="libraryStatus" class="library-status">لا توجد كتب مضافة</div></div>
       <div class="side-section"><h3>الأدوات</h3><button class="side-btn" data-prompt="اعمل لي اختبارًا قصيرًا في المادة التي أحددها لك">📝 إنشاء اختبار</button><button class="side-btn" data-prompt="لخص لي الدرس أو النص الذي سأرسله لك">📋 تلخيص درس</button><button class="side-btn" data-prompt="اعمل لي مراجعة سريعة لأهم النقاط التي أحتاج مذاكرتها">🧠 مراجعة سريعة</button></div>
       <div class="profile"><div class="avatar">E</div><div><b>Elshorihy</b><small>حسابك الشخصي</small></div></div>
     </aside>
     <main class="main">
       <header class="topbar"><button class="menu" id="menuBtn">☰</button><div><b>Elshori7y AI</b><span>مساعدك الشخصي</span></div><button class="icon-btn" id="themeBtn">☾</button></header>
       <section class="chat" id="chat">
-        <div class="welcome" id="welcome"><div class="hero-logo">E</div><h1>أهلاً بيك في <span>Elshori7y AI</span> 👋</h1><p>مساعد دراسي شخصي تقدر تسأله وتذاكر معاه. الخطوة التالية هي إضافة كتبك كقاعدة معرفة.</p><div class="quick"><button data-prompt="اشرح لي الدرس بطريقة سهلة">اشرح لي درس 📖</button><button data-prompt="اعمل لي اختبار قصير في مادة أختارها لاحقًا">اختبرني 📝</button><button data-prompt="لخص لي أهم النقاط التي أرسلها لك">لخص لي 📋</button></div></div>
+        <div class="welcome" id="welcome"><div class="hero-logo">E</div><h1>أهلاً بيك في <span>Elshori7y AI</span> 👋</h1><p>مساعدك الدراسي الشخصي. أضف كتبك من المكتبة، وسيستخدمها المساعد للإجابة عن أسئلتك.</p><div class="quick"><button data-prompt="اشرح لي الدرس بطريقة سهلة">اشرح لي درس 📖</button><button data-prompt="اعمل لي اختبار قصير في المادة التي أختارها">اختبرني 📝</button><button data-prompt="لخص لي أهم النقاط التي أرسلها لك">لخص لي 📋</button></div></div>
       </section>
-      <div class="composer-wrap"><div class="composer"><button id="attachBtn" title="إرفاق">＋</button><textarea id="prompt" rows="1" placeholder="اكتب سؤالك هنا..."></textarea><button class="send" id="sendBtn">➤</button></div><small>Elshori7y AI — مساعدك الدراسي الشخصي</small></div>
+      <div class="composer-wrap"><div class="composer"><button id="attachBtn" title="إرفاق">＋</button><textarea id="prompt" rows="1" placeholder="اكتب سؤالك هنا..."></textarea><button class="send" id="sendBtn">➤</button></div><small>Elshori7y AI — كتبك تبقى في متصفحك وتُرسل فقط المقاطع المناسبة للسؤال.</small></div>
     </main>
   </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
