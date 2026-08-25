@@ -11,19 +11,20 @@ async function chat(request,env){
  if(!upstream.ok)return json({error:data?.error?.message||'حدث خطأ من Gemini.'},upstream.status);
  const text=data?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'لم يصل رد من المساعد.';return json({text})
 }
+function esc(s){return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+function diagramSvg(title,description,style){
+ const raw=String(description||title).replace(/\s+/g,' ').trim();const h=hash(raw);const fills=['#e8f1ff','#eafaf1','#fff3d9','#f5ecff'];const bg=fills[h%fills.length];
+ const items=raw.split(/[،,.;:!?؟\n]+/).map(x=>x.trim()).filter(Boolean).slice(0,6);const nodes=items.length?items:[title];
+ const cx=600,cy=430,r=Math.min(255,120+nodes.length*20);let shapes='';let edges='';
+ nodes.forEach((label,i)=>{const a=(Math.PI*2*i/nodes.length)-Math.PI/2;const x=cx+Math.cos(a)*r,y=cy+Math.sin(a)*r;if(nodes.length>1){const pa=(Math.PI*2*(i-1)/nodes.length)-Math.PI/2;const px=cx+Math.cos(pa)*r,py=cy+Math.sin(pa)*r;edges+=`<line x1="${px}" y1="${py}" x2="${x}" y2="${y}" stroke="#64748b" stroke-width="4" marker-end="url(#arrow)"/>`}shapes+=`<g><rect x="${x-135}" y="${y-48}" width="270" height="96" rx="22" fill="white" stroke="#334155" stroke-width="3"/><text x="${x}" y="${y+8}" text-anchor="middle" direction="rtl" unicode-bidi="plaintext" font-family="Noto Sans Arabic,Arial,sans-serif" font-size="25" fill="#0f172a">${esc(label.slice(0,38))}</text></g>`});
+ return `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="850" viewBox="0 0 1200 850"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bg}"/><stop offset="1" stop-color="#fff"/></linearGradient><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker></defs><rect width="1200" height="850" rx="30" fill="url(#bg)"/><text x="600" y="76" text-anchor="middle" direction="rtl" unicode-bidi="plaintext" font-family="Noto Sans Arabic,Arial,sans-serif" font-size="38" font-weight="700" fill="#0f172a">${esc(String(title).slice(0,70))}</text><text x="600" y="112" text-anchor="middle" direction="rtl" unicode-bidi="plaintext" font-family="Noto Sans Arabic,Arial,sans-serif" font-size="17" fill="#475569">${esc(String(style||'رسم تعليمي'))}</text><circle cx="600" cy="430" r="86" fill="#0f172a"/><text x="600" y="442" text-anchor="middle" direction="rtl" unicode-bidi="plaintext" font-family="Noto Sans Arabic,Arial,sans-serif" font-size="27" font-weight="700" fill="white">الفكرة الرئيسية</text>${edges}${shapes}<text x="600" y="805" text-anchor="middle" direction="rtl" unicode-bidi="plaintext" font-family="Noto Sans Arabic,Arial,sans-serif" font-size="18" fill="#475569">رسم تعليمي مولّد داخل Elshori7y AI</text></svg>`
+}
 async function image(request,env){
  let body;try{body=await request.json()}catch{return json({error:'بيانات طلب الصورة غير صالحة.'},400)}
- const prompt=typeof body?.prompt==='string'?body.prompt.trim():'';const style=typeof body?.style==='string'?body.style.trim():'شرح درس';const context=typeof body?.context==='string'?body.context.trim():'';
+ const prompt=typeof body?.prompt==='string'?body.prompt.trim():'';const style=typeof body?.style==='string'?body.style.trim():'خريطة مفاهيم';const context=typeof body?.context==='string'?body.context.trim():'';
  if(!prompt)return json({error:'اكتب وصف الصورة أولًا.'},400);
- const hf=env?.HF_TOKEN;if(typeof hf!=='string'||!hf.trim())return json({error:'لم يتم إعداد HF_TOKEN على Cloudflare Worker.'},500);
- const model=env?.HF_IMAGE_MODEL||'black-forest-labs/FLUX.1-dev';
- const instruction=`Educational illustration for an Arabic-speaking student. Style: ${style}. Request: ${prompt}. ${context?`Use this book context for factual accuracy: ${context.slice(0,7000)}`:''} No text, letters, captions, labels, logos, watermarks, or copyrighted characters in the image. Use clear visual elements only.`;
- let upstream;try{upstream=await fetch('https://router.huggingface.co/fal-ai/fal-ai/'+encodeURIComponent(model),{method:'POST',headers:{authorization:'Bearer '+hf.trim(),'content-type':'application/json'},body:JSON.stringify({prompt:instruction,num_inference_steps:4})})}catch{return json({error:'تعذر الاتصال بخدمة Hugging Face/Fal AI.'},502)}
- if(!upstream.ok){let msg='حدث خطأ أثناء توليد الصورة.';try{const e=await upstream.json();msg=e?.error||e?.message||msg}catch{}return json({error:msg},upstream.status)}
- const contentType=upstream.headers.get('content-type')||'';
- if(contentType.includes('image/')){const buffer=await upstream.arrayBuffer();let binary='';const bytes=new Uint8Array(buffer);const chunk=0x8000;for(let i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode(...bytes.subarray(i,i+chunk));return json({image:`data:${contentType};base64,${btoa(binary)}`,labels:[]})}
- let result;try{result=await upstream.json()}catch{return json({error:'مزود الصور أرسل استجابة غير صالحة.'},502)}
- const url=result?.images?.[0]?.url||result?.image?.url||result?.url||result?.images?.[0];if(typeof url==='string'&&url)return json({image:url,labels:[]});
- return json({error:result?.error||'لم تصل صورة من مزود الصور.'},502)
+ const source=`${prompt}${context?' '+context.slice(0,3500):''}`;const svg=diagramSvg(prompt.slice(0,80),source,style);
+ return json({image:`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(svg)))}`,format:'svg',labels:[],provider:'local-svg'});
 }
 export default{async fetch(request,env){const url=new URL(request.url);if(url.pathname==='/api/chat'&&request.method==='POST')return chat(request,env);if(url.pathname==='/api/image'&&request.method==='POST')return image(request,env);if(url.pathname==='/api/health')return json({ok:true,secretConfigured:typeof env?.GEMINI_API_KEY==='string'&&env.GEMINI_API_KEY.length>0,hfConfigured:typeof env?.HF_TOKEN==='string'&&env.HF_TOKEN.length>0,bindingNames:Object.keys(env||{})});return env.ASSETS.fetch(request)}};
