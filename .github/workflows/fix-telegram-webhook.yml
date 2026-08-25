@@ -1,0 +1,44 @@
+name: Fix Telegram webhook routing
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch webhook compatibility
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('worker.js')
+          s = p.read_text(encoding='utf-8')
+          old = "if(url.pathname==='/api/telegram/setup'&&request.method==='GET')return telegramSetup(request,env);"
+          new = "if(url.pathname==='/api/telegram/setup'&&request.method==='POST')return telegram(request,env);if(url.pathname==='/api/telegram/setup'&&request.method==='GET')return telegramSetup(request,env);"
+          if new in s:
+              print('Telegram webhook compatibility patch already present.')
+          elif old in s:
+              p.write_text(s.replace(old, new, 1), encoding='utf-8')
+              print('Patched /api/telegram/setup POST to process Telegram updates.')
+          else:
+              raise SystemExit('Expected worker.js route was not found; no changes made.')
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          if git diff --quiet -- worker.js; then
+            echo 'No changes to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add worker.js
+          git commit -m 'fix: accept Telegram webhook updates on setup route'
+          git push
