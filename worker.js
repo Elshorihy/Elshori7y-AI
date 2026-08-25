@@ -16,7 +16,7 @@ async function image(request,env){
  const prompt=typeof body?.prompt==='string'?body.prompt.trim():'';const style=typeof body?.style==='string'?body.style.trim():'شرح درس';const context=typeof body?.context==='string'?body.context.trim():'';
  if(!prompt)return json({error:'اكتب وصف الصورة أولًا.'},400);
  const hf=env?.HF_TOKEN;if(typeof hf!=='string'||!hf.trim())return json({error:'لم يتم إعداد HF_TOKEN على Cloudflare Worker.'},500);
- const model=env?.HF_IMAGE_MODEL||'black-forest-labs/FLUX.1-schnell';
+ const model=env?.HF_IMAGE_MODEL||'black-forest-labs/FLUX.1-dev';
  const instruction=`Educational illustration for an Arabic-speaking student. Style: ${style}. Request: ${prompt}. ${context?`Use this book context for factual accuracy: ${context.slice(0,7000)}`:''} No text, letters, captions, labels, logos, watermarks, or copyrighted characters in the image. Use clear visual elements only.`;
  let upstream;try{upstream=await fetch('https://router.huggingface.co/hf-inference/models/'+encodeURIComponent(model),{method:'POST',headers:{authorization:'Bearer '+hf.trim(),'content-type':'application/json','x-use-cache':'false'},body:JSON.stringify({inputs:instruction,parameters:{num_inference_steps:4}})})}catch{return json({error:'تعذر الاتصال بخدمة Hugging Face.'},502)}
  if(!upstream.ok){let msg='حدث خطأ أثناء توليد الصورة.';try{const e=await upstream.json();msg=e?.error||e?.message||msg}catch{}return json({error:msg},upstream.status)}
