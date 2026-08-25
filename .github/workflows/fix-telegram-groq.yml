@@ -1,0 +1,69 @@
+name: Fix Telegram Groq fallback
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, 'fix: patch Telegram Groq fallback') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch Telegram fallback
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          p = Path('worker.js')
+          s = p.read_text(encoding='utf-8')
+          new = r'''async function tgAskBook(env,chatId,question){
+ const cached=await tgBookFor(chatId);if(!cached)return '📚 ابعتلي الكتاب الأول كـ PDF أو صورة، وبعدها اسألني عنه.';
+ const type=cached.headers.get('x-telegram-book-type')||'application/pdf';
+ const name=cached.headers.get('x-telegram-book-name')||'الكتاب';
+ const bytes=new Uint8Array(await cached.arrayBuffer());
+ if(bytes.byteLength>19000000)return '⚠️ الملف أكبر من الحد المناسب للقراءة المباشرة. ابعت نسخة أصغر.';
+ let binary='';const chunk=0x8000;for(let i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+chunk,bytes.length)));const b64=btoa(binary);
+ const prompt=`أنت مدرس Elshori7y على Telegram. أجب بالعربية وباختصار مفيد. اسم الكتاب: ${name}. سؤال الطالب: ${question}`;
+ const gemini=env?.GEMINI_API_KEY;
+ if(gemini){
+  try{
+   const r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key='+encodeURIComponent(gemini.trim()),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts:[{text:`أجب من محتوى الكتاب المرفق فقط. إذا لم تجد الإجابة قل إنها غير موجودة. ${prompt}`},{inlineData:{mimeType:type,data:b64}}]}]})});
+   const d=await r.json();if(r.ok){const t=d?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'';if(t)return t;}
+  }catch{}
+ }
+ const key=env?.GROQ_API_KEY;
+ if(!key)return '❌ لا يوجد GROQ_API_KEY مضبوط على Worker.';
+ if(type.startsWith('image/')){
+  try{
+   const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+key.trim()},body:JSON.stringify({model:'qwen/qwen3.6-27b',messages:[{role:'user',content:[{type:'text',text:`أنت مدرس Elshorihy. اقرأ صورة الصفحة وأجب عن السؤال التالي من محتواها فقط. إذا لم تجد الإجابة قل إنها غير موجودة. ${prompt}`},{type:'image_url',image_url:{url:`data:${type};base64,${b64}`}}]}],temperature:0.3,max_completion_tokens:2048})});
+   const d=await r.json();if(r.ok){const t=d?.choices?.[0]?.message?.content?.trim();if(t)return t;}
+  }catch{}
+ }
+ try{
+  const r=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+key.trim()},body:JSON.stringify({model:'llama-3.3-70b-versatile',messages:[{role:'system',content:'أنت مدرس Elshori7y. أجب بالعربية المصرية وبشكل مفيد. لا تدّعي أنك قرأت ملفًا لم تستطع قراءته.'},{role:'user',content:`${prompt}\n\nملاحظة: ملف الكتاب PDF غير متاح للقراءة المباشرة عبر Groq. أجب من السؤال فقط، وإذا كان السؤال يعتمد على نص الكتاب اطلب من الطالب إرسال صورة الصفحة.`}],temperature:0.5,max_tokens:2048})});
+  const d=await r.json();if(r.ok){const t=d?.choices?.[0]?.message?.content?.trim();if(t)return t;}
+ }catch{}
+ return '❌ تعذر الحصول على رد من Gemini أو Groq. جرّب إرسال صورة الصفحة بدل PDF.';
+}'''
+          s2, n = re.subn(r'async function tgAskBook\(env,chatId,question\)\{.*?\n\}\nasync function telegram', new + '\nasync function telegram', s, count=1, flags=re.S)
+          if n != 1:
+              raise SystemExit('tgAskBook function not found')
+          p.write_text(s2, encoding='utf-8')
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add worker.js
+          git commit -m "fix: patch Telegram Groq fallback" || exit 0
+          git push
+      - name: Remove one-shot workflow
+        if: success()
+        run: |
+          rm -f .github/workflows/fix-telegram-groq.yml
+          git add .github/workflows/fix-telegram-groq.yml
+          git commit -m "chore: remove one-shot patch workflow" || exit 0
+          git push
