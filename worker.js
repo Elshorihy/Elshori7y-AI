@@ -18,9 +18,12 @@ async function image(request,env){
  const hf=env?.HF_TOKEN;if(typeof hf!=='string'||!hf.trim())return json({error:'لم يتم إعداد HF_TOKEN على Cloudflare Worker.'},500);
  const model=env?.HF_IMAGE_MODEL||'black-forest-labs/FLUX.1-dev';
  const instruction=`Educational illustration for an Arabic-speaking student. Style: ${style}. Request: ${prompt}. ${context?`Use this book context for factual accuracy: ${context.slice(0,7000)}`:''} No text, letters, captions, labels, logos, watermarks, or copyrighted characters in the image. Use clear visual elements only.`;
- let upstream;try{upstream=await fetch('https://router.huggingface.co/hf-inference/models/'+encodeURIComponent(model),{method:'POST',headers:{authorization:'Bearer '+hf.trim(),'content-type':'application/json','x-use-cache':'false'},body:JSON.stringify({inputs:instruction,parameters:{num_inference_steps:4}})})}catch{return json({error:'تعذر الاتصال بخدمة Hugging Face.'},502)}
+ let upstream;try{upstream=await fetch('https://router.huggingface.co/fal-ai/fal-ai/'+encodeURIComponent(model),{method:'POST',headers:{authorization:'Bearer '+hf.trim(),'content-type':'application/json'},body:JSON.stringify({prompt:instruction,num_inference_steps:4})})}catch{return json({error:'تعذر الاتصال بخدمة Hugging Face/Fal AI.'},502)}
  if(!upstream.ok){let msg='حدث خطأ أثناء توليد الصورة.';try{const e=await upstream.json();msg=e?.error||e?.message||msg}catch{}return json({error:msg},upstream.status)}
- const mime=upstream.headers.get('content-type')||'image/png';const buffer=await upstream.arrayBuffer();let binary='';const bytes=new Uint8Array(buffer);const chunk=0x8000;for(let i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode(...bytes.subarray(i,i+chunk));
- return json({image:`data:${mime};base64,${btoa(binary)}`,labels:[]});
+ const contentType=upstream.headers.get('content-type')||'';
+ if(contentType.includes('image/')){const buffer=await upstream.arrayBuffer();let binary='';const bytes=new Uint8Array(buffer);const chunk=0x8000;for(let i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode(...bytes.subarray(i,i+chunk));return json({image:`data:${contentType};base64,${btoa(binary)}`,labels:[]})}
+ let result;try{result=await upstream.json()}catch{return json({error:'مزود الصور أرسل استجابة غير صالحة.'},502)}
+ const url=result?.images?.[0]?.url||result?.image?.url||result?.url||result?.images?.[0];if(typeof url==='string'&&url)return json({image:url,labels:[]});
+ return json({error:result?.error||'لم تصل صورة من مزود الصور.'},502)
 }
 export default{async fetch(request,env){const url=new URL(request.url);if(url.pathname==='/api/chat'&&request.method==='POST')return chat(request,env);if(url.pathname==='/api/image'&&request.method==='POST')return image(request,env);if(url.pathname==='/api/health')return json({ok:true,secretConfigured:typeof env?.GEMINI_API_KEY==='string'&&env.GEMINI_API_KEY.length>0,hfConfigured:typeof env?.HF_TOKEN==='string'&&env.HF_TOKEN.length>0,bindingNames:Object.keys(env||{})});return env.ASSETS.fetch(request)}};
