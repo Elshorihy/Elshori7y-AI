@@ -11,4 +11,20 @@ async function chat(request,env){
  if(!upstream.ok)return json({error:data?.error?.message||'حدث خطأ من Gemini.'},upstream.status);
  const text=data?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'لم يصل رد من المساعد.';return json({text})
 }
-export default{async fetch(request,env){const url=new URL(request.url);if(url.pathname==='/api/chat'&&request.method==='POST')return chat(request,env);if(url.pathname==='/api/health')return json({ok:true,secretConfigured:typeof env?.GEMINI_API_KEY==='string'&&env.GEMINI_API_KEY.length>0,bindingNames:Object.keys(env||{})});return env.ASSETS.fetch(request)}};
+async function image(request,env){
+ let body;try{body=await request.json()}catch{return json({error:'بيانات طلب الصورة غير صالحة.'},400)}
+ const prompt=typeof body?.prompt==='string'?body.prompt.trim():'';const style=typeof body?.style==='string'?body.style.trim():'شرح درس';const context=typeof body?.context==='string'?body.context.trim():'';
+ if(!prompt)return json({error:'اكتب وصف الصورة أولًا.'},400);
+ const apiKey=env?.GEMINI_API_KEY;if(typeof apiKey!=='string'||!apiKey.trim())return json({error:'لم يتم إعداد GEMINI_API_KEY على Cloudflare Worker.'},500);
+ const instruction=`Create a clear educational illustration for an Arabic-speaking student. Style: ${style}. User request: ${prompt}. ${context?`Use this book context for factual accuracy:\n${context.slice(0,9000)}`:''} Do not place Arabic or other explanatory text inside the base image. Use clean diagrams, objects, arrows, and visual symbols instead. Avoid copyrighted characters and logos.`;
+ let upstream;try{upstream=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key='+encodeURIComponent(apiKey.trim()),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts:[{text:instruction}]}],generationConfig:{responseModalities:['TEXT','IMAGE']}})})}catch{return json({error:'تعذر الاتصال بخدمة توليد الصور.'},502)}
+ let data;try{data=await upstream.json()}catch{return json({error:'مزود الصور أرسل استجابة غير صالحة.'},502)}
+ if(!upstream.ok)return json({error:data?.error?.message||'حدث خطأ أثناء توليد الصورة.'},upstream.status);
+ const parts=data?.candidates?.[0]?.content?.parts||[];const img=parts.find(p=>p?.inlineData?.data||p?.inline_data?.data);const text=parts.filter(p=>p?.text).map(p=>p.text).join(' ');
+ if(!img)return json({error:text||'لم تصل صورة من Gemini. جرّب وصفًا آخر.'},502);
+ const inline=img.inlineData||img.inline_data;const mime=inline.mimeType||inline.mime_type||'image/png';
+ // Ask Gemini for a compact set of Arabic labels separately; these are rendered as real browser text.
+ let labels=[];try{const lr=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key='+encodeURIComponent(apiKey.trim()),{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({contents:[{role:'user',parts:[{text:`For this educational image request, return ONLY valid JSON: {"labels":[{"text":"Arabic label","x":50,"y":50}]}. Give up to 8 short Arabic labels that should appear on the diagram and approximate positions as percentages. Request: ${prompt}. Context: ${context.slice(0,5000)}`}]}],generationConfig:{responseMimeType:'application/json'}})});const ld=await lr.json();const raw=ld?.candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('')||'';const parsed=JSON.parse(raw);if(Array.isArray(parsed.labels))labels=parsed.labels.filter(x=>x&&typeof x.text==='string').slice(0,8)}catch{}
+ return json({image:`data:${mime};base64,${inline.data}`,labels});
+}
+export default{async fetch(request,env){const url=new URL(request.url);if(url.pathname==='/api/chat'&&request.method==='POST')return chat(request,env);if(url.pathname==='/api/image'&&request.method==='POST')return image(request,env);if(url.pathname==='/api/health')return json({ok:true,secretConfigured:typeof env?.GEMINI_API_KEY==='string'&&env.GEMINI_API_KEY.length>0,bindingNames:Object.keys(env||{})});return env.ASSETS.fetch(request)}};
